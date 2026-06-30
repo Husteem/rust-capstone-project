@@ -19,14 +19,20 @@ fn get_wallet_rpc(rpc: &Client, name: &str) -> bitcoincore_rpc::Result<Client> {
     if !loaded_wallets.contains(&name.to_string()) {
         // Attempt to load the wallet from the datadir
         if let Err(e) = rpc.load_wallet(name) {
-            println!("Wallet '{}' could not be loaded ({:?}). Creating a new one instead...", name, e);
+            println!(
+                "Wallet '{}' could not be loaded ({:?}). Creating a new one instead...",
+                name, e
+            );
             // Create a new descriptor/legacy wallet with private keys enabled
             rpc.create_wallet(name, Some(false), Some(false), None, None)?;
         }
     }
     // Return a client pointing directly to the wallet-specific RPC endpoint
     let wallet_url = format!("{}/wallet/{}", RPC_URL, name);
-    Client::new(&wallet_url, Auth::UserPass(RPC_USER.to_owned(), RPC_PASS.to_owned()))
+    Client::new(
+        &wallet_url,
+        Auth::UserPass(RPC_USER.to_owned(), RPC_PASS.to_owned()),
+    )
 }
 
 fn main() -> bitcoincore_rpc::Result<()> {
@@ -47,7 +53,9 @@ fn main() -> bitcoincore_rpc::Result<()> {
 
     // 3. Generate a new address from the Miner wallet with the label "Mining Reward"
     // We assume the returned address network check is verified since we are running on Regtest.
-    let miner_address = miner_rpc.get_new_address(Some("Mining Reward"), None)?.assume_checked();
+    let miner_address = miner_rpc
+        .get_new_address(Some("Mining Reward"), None)?
+        .assume_checked();
     println!("Generated Miner address: {}", miner_address);
 
     // 4. Mine new blocks until the Miner wallet has a positive spendable balance.
@@ -58,7 +66,10 @@ fn main() -> bitcoincore_rpc::Result<()> {
         miner_rpc.generate_to_address(1, &miner_address)?;
         blocks_mined += 1;
     }
-    println!("Successfully reached a positive balance after mining {} blocks.", blocks_mined);
+    println!(
+        "Successfully reached a positive balance after mining {} blocks.",
+        blocks_mined
+    );
 
     /*
      * Why did the Miner's balance stay at zero until we mined 101 blocks?
@@ -67,7 +78,7 @@ fn main() -> bitcoincore_rpc::Result<()> {
      * those blocks can disappear. Locking rewards ensures that no one spends money that could
      * be reverted if the block gets orphaned. Once block 101 is mined, the block 1 reward finally
      * matures!
-     * 
+     *
      * Side Note: I bypassed Docker and ran this setup bare metal directly on WSL to verify
      * that it works outside of docker containers, and it did successfully!
      */
@@ -77,7 +88,9 @@ fn main() -> bitcoincore_rpc::Result<()> {
     println!("Miner Wallet Balance: {} BTC", miner_balance.to_btc());
 
     // 6. Create a receiving address labeled "Received" from the Trader wallet
-    let trader_address = trader_rpc.get_new_address(Some("Received"), None)?.assume_checked();
+    let trader_address = trader_rpc
+        .get_new_address(Some("Received"), None)?
+        .assume_checked();
     println!("Generated Trader receiving address: {}", trader_address);
 
     // 7. Send a transaction paying 20 BTC from the Miner wallet to the Trader wallet
@@ -119,12 +132,18 @@ fn main() -> bitcoincore_rpc::Result<()> {
     let prev_tx_info = miner_rpc.get_transaction(prev_txid, Some(true))?;
     let prev_decoded = miner_rpc.decode_raw_transaction(&prev_tx_info.hex, None)?;
     let prev_output = &prev_decoded.vout[prev_vout as usize];
-    
+
     let miner_input_amount = prev_output.value.to_btc();
-    let miner_input_address = prev_output.script_pub_key.address.as_ref()
+    let miner_input_address = prev_output
+        .script_pub_key
+        .address
+        .as_ref()
         .map(|a| a.clone().assume_checked().to_string())
         .or_else(|| {
-            prev_output.script_pub_key.addresses.first()
+            prev_output
+                .script_pub_key
+                .addresses
+                .first()
                 .map(|a| a.clone().assume_checked().to_string())
         })
         .expect("Previous output should have an address");
@@ -139,10 +158,13 @@ fn main() -> bitcoincore_rpc::Result<()> {
         let is_trader = if let Some(ref addr) = output.script_pub_key.address {
             addr.clone().assume_checked().to_string() == trader_address.to_string()
         } else {
-            output.script_pub_key.addresses.iter()
+            output
+                .script_pub_key
+                .addresses
+                .iter()
                 .any(|a| a.clone().assume_checked().to_string() == trader_address.to_string())
         };
-            
+
         if is_trader {
             trader_output_address = trader_address.to_string();
             trader_output_amount = output.value.to_btc();
@@ -150,7 +172,10 @@ fn main() -> bitcoincore_rpc::Result<()> {
             miner_change_address = if let Some(ref addr) = output.script_pub_key.address {
                 addr.clone().assume_checked().to_string()
             } else {
-                output.script_pub_key.addresses.first()
+                output
+                    .script_pub_key
+                    .addresses
+                    .first()
                     .map(|a| a.clone().assume_checked().to_string())
                     .unwrap_or_default()
             };
@@ -160,7 +185,10 @@ fn main() -> bitcoincore_rpc::Result<()> {
 
     // Read fee details and confirmation block info
     let fee_btc = tx_info.fee.expect("Transaction should have a fee").to_btc();
-    let block_hash = tx_info.info.blockhash.expect("Transaction should be confirmed");
+    let block_hash = tx_info
+        .info
+        .blockhash
+        .expect("Transaction should be confirmed");
     let block_info = miner_rpc.get_block_info(&block_hash)?;
     let block_height = block_info.height;
 
